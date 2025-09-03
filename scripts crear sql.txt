@@ -1,0 +1,60 @@
+-- Crear base de datos
+CREATE DATABASE IF NOT EXISTS planner CHARACTER SET utf8mb4;
+USE planner;
+
+-- Eliminar tablas si ya existen (para reiniciar limpio)
+DROP TABLE IF EXISTS tareas;
+DROP TABLE IF EXISTS dias;
+DROP TABLE IF EXISTS proyectos;
+
+-- Tabla de proyectos
+CREATE TABLE proyectos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(30) NOT NULL,
+    orden INT NOT NULL
+);
+
+-- Tabla de días
+CREATE TABLE dias (
+    fecha DATE PRIMARY KEY,
+    reuniones INT DEFAULT 0,     -- minutos
+    explotacion INT DEFAULT 0,   -- minutos
+    maximo INT NOT NULL          -- minutos
+    -- disponible se calcula en la app
+);
+
+-- Tabla de tareas
+CREATE TABLE tareas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    proyecto_id INT NOT NULL,
+    fecha DATE NOT NULL,
+    descripcion VARCHAR(200),
+    prioridad INT NOT NULL,
+    tiempo_estimado INT NOT NULL,   -- minutos
+    estado ENUM('pendiente','finalizada') DEFAULT 'pendiente',
+    FOREIGN KEY (proyecto_id) REFERENCES proyectos(id) ON DELETE CASCADE,
+    FOREIGN KEY (fecha) REFERENCES dias(fecha) ON DELETE CASCADE
+);
+
+-- ---------------- DATOS DE EJEMPLO ----------------
+
+-- Proyectos
+INSERT INTO proyectos (nombre, orden) VALUES
+('Proyecto Demo', 1),
+('Proyecto Prueba', 2),
+('Migración SAP', 3);
+
+-- Días (hoy y los 3 siguientes)
+INSERT INTO dias (fecha, reuniones, explotacion, maximo) VALUES
+(CURDATE(), 60, 120, 480),  -- Hoy: 1h reuniones + 2h explotación + 8h máximo
+(DATE_ADD(CURDATE(), INTERVAL 1 DAY), 30, 60, 480),
+(DATE_ADD(CURDATE(), INTERVAL 2 DAY), 90, 90, 480),
+(DATE_ADD(CURDATE(), INTERVAL 3 DAY), 45, 120, 480);
+
+-- Tareas
+INSERT INTO tareas (proyecto_id, fecha, descripcion, prioridad, tiempo_estimado, estado) VALUES
+(1, CURDATE(), 'Preparar informe semanal', 1, 120, 'pendiente'),
+(2, CURDATE(), 'Revisión de código Python', 2, 90, 'finalizada'),
+(3, DATE_ADD(CURDATE(), INTERVAL 1 DAY), 'Configurar servidor de pruebas', 5, 180, 'pendiente'),
+(1, DATE_ADD(CURDATE(), INTERVAL 2 DAY), 'Actualizar documentación', 3, 60, 'pendiente'),
+(2, DATE_ADD(CURDATE(), INTERVAL 3 DAY), 'Reunión con equipo', 1, 90, 'pendiente');
