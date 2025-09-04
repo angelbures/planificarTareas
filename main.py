@@ -227,6 +227,23 @@ class PlanificacionTab(QWidget):
             combo_estado.setCurrentIndex(idx_estado if idx_estado >= 0 else 0)
             combo_estado.currentIndexChanged.connect(lambda idx, r=row, c=combo_estado: self.on_estado_changed(r, c))
             self.table.setCellWidget(row, 5, combo_estado)
+
+            # Estilo visual para finalizadas: tachado y verde tenue
+            es_finalizada = (tarea.get("estado") == "finalizada")
+            if es_finalizada:
+                verde_tenue = QColor(200, 240, 200)
+                font_strike = QFont()
+                font_strike.setStrikeOut(True)
+                # Aplica a columnas 0..5
+                for col in range(6):
+                    w = self.table.cellWidget(row, col)
+                    if w is not None:
+                        w.setStyleSheet("background-color: rgb(200,240,200);")
+                    else:
+                        item = self.table.item(row, col)
+                        if item is not None:
+                            item.setBackground(verde_tenue)
+                            item.setFont(font_strike)
         # Reactiva señales tras terminar de poblar la tabla
         self.table.blockSignals(False)
 
