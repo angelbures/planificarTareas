@@ -65,26 +65,42 @@ def delete_dia(fecha):
             cur.execute(sql, (fecha,))
         conn.commit()
 
+def get_max_fecha_dia():
+    sql = "SELECT MAX(fecha) as max_fecha FROM dias"
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            row = cur.fetchone()
+            return row["max_fecha"] if row else None
+
 # ---------- TAREAS ----------
 def get_tareas(ref_fecha, order=1):
     if order == 1:
         sql = """SELECT t.*, p.nombre as proyecto 
                  FROM tareas t 
-                 JOIN proyectos p ON t.proyecto_id=p.id
-                 WHERE fecha >= %s
-                 ORDER BY fecha, prioridad, proyecto"""
+                 LEFT JOIN proyectos p ON t.proyecto_id=p.id
+                 WHERE t.fecha >= %s
+                 ORDER BY t.fecha, t.prioridad, p.nombre"""
     else:
         sql = """SELECT t.*, p.nombre as proyecto 
                  FROM tareas t 
-                 JOIN proyectos p ON t.proyecto_id=p.id
-                 WHERE fecha >= %s
-                 ORDER BY proyecto, id, prioridad, fecha"""
+                 LEFT JOIN proyectos p ON t.proyecto_id=p.id
+                 WHERE t.fecha >= %s
+                 ORDER BY p.nombre, t.id, t.prioridad, t.fecha"""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(sql, (ref_fecha,))
             return cur.fetchall()
 
 def add_tarea(proyecto_id, fecha, descripcion, prioridad, tiempo_estimado):
+    # Si no se pasa proyecto_id, busca el proyecto con mayor orden
+    if proyecto_id is None:
+        sql_max = "SELECT id FROM proyectos ORDER BY orden DESC LIMIT 1"
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql_max)
+                row = cur.fetchone()
+                proyecto_id = row["id"] if row else None
     sql = """INSERT INTO tareas(proyecto_id, fecha, descripcion, prioridad, tiempo_estimado) 
              VALUES (%s,%s,%s,%s,%s)"""
     with get_connection() as conn:
