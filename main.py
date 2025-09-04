@@ -33,6 +33,7 @@ class ProyectosTab(QWidget):
         super().__init__()
         layout = QVBoxLayout()
         self.table = QTableWidget()
+        self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.DoubleClicked | QTableWidget.SelectedClicked)
         layout.addWidget(self.table)
 
@@ -181,6 +182,7 @@ class PlanificacionTab(QWidget):
         # 1 = por fecha,prioridad; 2 = por proyecto, prio, fecha
         self.order_mode = 1
         self.table = QTableWidget()
+        self.table.verticalHeader().setVisible(False)
         self.table.itemChanged.connect(self.save_changes)
         layout.addWidget(self.table)
         self.setLayout(layout)
