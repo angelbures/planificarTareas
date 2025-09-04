@@ -584,11 +584,20 @@ class PlanDiaTab(QWidget):
         # Títulos más cortos
         self.dias_table.setHorizontalHeaderLabels(["Fecha","Reun","Expl","Max","Disp","Suma","Dif"])
         for r,d in enumerate(self.dias_data):
-            # Fecha (centrada, no editable)
-            it_fecha = QTableWidgetItem(str(d["fecha"]))
-            it_fecha.setTextAlignment(Qt.AlignCenter)
-            self.dias_table.setItem(r,0,it_fecha)
-            self.dias_table.item(r,0).setFlags(self.dias_table.item(r,0).flags() & ~0x2)
+            # Fecha con QDateEdit (editable, centrado)
+            date_edit = QDateEdit()
+            date_edit.setCalendarPopup(True)
+            # QDate.fromString con formato ISO
+            date_edit.setDisplayFormat("yyyy-MM-dd")
+            # Establecer la fecha actual del registro
+            try:
+                y,m,day = map(int, str(d["fecha"]).split("-"))
+                date_edit.setDate(QDate(y, m, day))
+            except Exception:
+                date_edit.setDate(QDate.currentDate())
+            # Señal de cambio
+            date_edit.dateChanged.connect(lambda qd, row=r, w=None: self.on_dia_fecha_changed(row, qd))
+            self.dias_table.setCellWidget(r, 0, date_edit)
             # HH:MM centrados
             def itm_hhmm(val, editable=True):
                 it = QTableWidgetItem(minutos_a_hhmm(val))
@@ -724,6 +733,7 @@ class PlanDiaTab(QWidget):
         if row < 0:
             return
         d = self.dias_data[row]
+        # Columna 0 ahora la gestiona on_dia_fecha_changed
         fecha = d["fecha"]
         def to_min(r,c):
             cell = self.dias_table.item(r,c)
@@ -734,11 +744,33 @@ class PlanDiaTab(QWidget):
         update_dia(fecha, reuniones, explotacion, maximo)
         self.load_data(self.mainwin.ref_fecha)
 
+    def on_dia_fecha_changed(self, row, qdate):
+        if row < 0:
+            return
+        d = self.dias_data[row]
+        nueva_fecha = qdate.toString("yyyy-MM-dd")
+        # Conserva valores actuales de la fila
+        def to_min(r,c):
+            cell = self.dias_table.item(r,c)
+            return hhmm_a_minutos(cell.text()) if cell else 0
+        reuniones = to_min(row,1)
+        explotacion = to_min(row,2)
+        maximo = to_min(row,3)
+        try:
+            delete_dia(d["fecha"])  # eliminar PK antigua
+            add_dia(nueva_fecha, reuniones, explotacion, maximo)  # insertar nueva fila
+        except Exception:
+            # Revertir visualmente si falla
+            self._load_dias(self.mainwin.ref_fecha)
+            return
+        self.load_data(self.mainwin.ref_fecha)
+
     # ----- Botones -----
     def add_focused(self):
         if self.active_grid == 'tareas':
-            # Añadir tarea con valores por defecto
-            fecha_ref = str(self.mainwin.ref_fecha)
+            # Añadir tarea con la fecha máxima existente en tabla 'dias'
+            max_fecha = get_max_fecha_dia()
+            fecha_ref = str(max_fecha) if max_fecha else str(self.mainwin.ref_fecha)
             add_tarea(None, fecha_ref, "", 99, 0)
         else:
             # Añadir día como en pestaña original
@@ -777,7 +809,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Planner de Proyectos")
-        self.resize(1200, 600)
+        # Ventana un 20% más grande que el valor anterior aproximado
+        self.resize(1800, 1020)
 
         # Widget superior: selector de fecha y flechas
         top_widget = QWidget()
