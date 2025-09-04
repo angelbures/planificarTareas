@@ -9,7 +9,8 @@ from models import (
     get_dias, add_dia, update_dia, delete_dia,
     get_tareas, add_tarea, update_tarea, delete_tarea
 )
-
+from db import ensure_database
+ensure_database()
 # --- helpers ---
 def minutos_a_hhmm(mins):
     h = mins // 60
