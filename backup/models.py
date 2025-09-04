@@ -82,12 +82,11 @@ def get_tareas(ref_fecha, order=1):
                  WHERE t.fecha >= %s
                  ORDER BY t.fecha, t.prioridad, p.nombre"""
     else:
-        # Orden por proyecto (según p.orden asc), luego prioridad y fecha (asc)
         sql = """SELECT t.*, p.nombre as proyecto 
                  FROM tareas t 
                  LEFT JOIN proyectos p ON t.proyecto_id=p.id
                  WHERE t.fecha >= %s
-                 ORDER BY p.orden ASC, t.prioridad ASC, t.fecha ASC, t.id ASC"""
+                 ORDER BY p.nombre, t.id, t.prioridad, t.fecha"""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(sql, (ref_fecha,))
