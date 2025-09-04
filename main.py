@@ -169,6 +169,17 @@ class PlanificacionTab(QWidget):
         super().__init__()
         self.mainwin = mainwin
         layout = QVBoxLayout()
+        # Barra superior con botón de orden
+        top_bar = QHBoxLayout()
+        self.btn_toggle_order = QPushButton("Orden: Fecha/Prioridad")
+        self.btn_toggle_order.setToolTip("Alternar orden entre Fecha+Prioridad y Proyecto+Prio+Fecha")
+        self.btn_toggle_order.clicked.connect(self.toggle_order)
+        top_bar.addWidget(self.btn_toggle_order)
+        top_bar.addStretch(1)
+        layout.addLayout(top_bar)
+
+        # 1 = por fecha,prioridad; 2 = por proyecto, prio, fecha
+        self.order_mode = 1
         self.table = QTableWidget()
         self.table.itemChanged.connect(self.save_changes)
         layout.addWidget(self.table)
@@ -177,7 +188,7 @@ class PlanificacionTab(QWidget):
     def load_data(self, ref_fecha=None):
         if ref_fecha is None:
             ref_fecha = datetime.date.today()
-        self.data = get_tareas(ref_fecha, order=1)
+        self.data = get_tareas(ref_fecha, order=self.order_mode)
         # Evita que al rellenar la tabla se dispare itemChanged y provoque recursión
         self.table.blockSignals(True)
         proyectos = get_proyectos()
@@ -186,7 +197,7 @@ class PlanificacionTab(QWidget):
         self.table.setRowCount(len(self.data))
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels([
-            "Proyecto", "Fecha", "Descripción", "Prioridad", "Tiempo estimado", "Estado"
+            "Proyecto", "Fecha", "Descripción", "Prio", "Tiempo", "Estado"
         ])
         for row, tarea in enumerate(self.data):
             # Proyecto: QComboBox editable (como antes)
@@ -214,9 +225,11 @@ class PlanificacionTab(QWidget):
             self.table.setItem(row, 2, item_desc)
             # Prioridad
             item_prio = QTableWidgetItem(str(tarea["prioridad"]))
+            item_prio.setTextAlignment(Qt.AlignCenter)
             self.table.setItem(row, 3, item_prio)
             # Tiempo estimado
             item_tiempo = QTableWidgetItem(str(tarea["tiempo_estimado"]))
+            item_tiempo.setTextAlignment(Qt.AlignCenter)
             self.table.setItem(row, 4, item_tiempo)
             # Estado
             combo_estado = QComboBox()
@@ -246,6 +259,25 @@ class PlanificacionTab(QWidget):
                             item.setFont(font_strike)
         # Reactiva señales tras terminar de poblar la tabla
         self.table.blockSignals(False)
+
+        # Ajustes de ancho de columnas (aprox. píxeles, 1 char ~ 8 px)
+        # Proyecto ~25 chars, Descripción ~75 chars, Prio/Tiempo estrechas
+        try:
+            self.table.setColumnWidth(0, 25 * 8)   # Proyecto
+            self.table.setColumnWidth(2, 75 * 8)   # Descripción
+            self.table.setColumnWidth(3, 9 * 8)    # Prio
+            self.table.setColumnWidth(4, 10 * 8)   # Tiempo
+        except Exception:
+            pass
+
+    def toggle_order(self):
+        # Alterna entre 1 (fecha, prioridad) y 2 (proyecto, prio, fecha)
+        self.order_mode = 2 if self.order_mode == 1 else 1
+        self.btn_toggle_order.setText(
+            "Orden: Proyecto/Prio/Fecha" if self.order_mode == 2 else "Orden: Fecha/Prioridad"
+        )
+        # recarga con la fecha de referencia del main
+        self.load_data(self.mainwin.ref_fecha)
 
     def on_fecha_changed(self, row, combo_fecha):
         # Cambia solo la fecha de la tarea
