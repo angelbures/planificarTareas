@@ -32,22 +32,35 @@ def hhmm_a_minutos(texto):
 class ProyectosTab(QWidget):
     def __init__(self):
         super().__init__()
+        self.MAX_NOMBRE_LEN = 30  # Límite según columna VARCHAR(30) en BBDD
         layout = QVBoxLayout()
+        # Botones arriba
+        btns = QHBoxLayout()
+        add_btn = QPushButton("Añadir")
+        del_btn = QPushButton("Borrar")
+        # Alinear a la derecha y compactar
+        btns.addStretch(1)
+        btns.addWidget(add_btn)
+        btns.addWidget(del_btn)
+        try:
+            add_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            del_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        except Exception:
+            pass
+        layout.addLayout(btns)
+
+        # Tabla debajo
         self.table = QTableWidget()
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.DoubleClicked | QTableWidget.SelectedClicked)
         layout.addWidget(self.table)
 
-        btns = QHBoxLayout()
-        add_btn = QPushButton("Añadir")
-        del_btn = QPushButton("Borrar")
-        btns.addWidget(add_btn)
-        btns.addWidget(del_btn)
-        layout.addLayout(btns)
-
         add_btn.clicked.connect(self.add)
         del_btn.clicked.connect(self.delete)
         self.table.itemChanged.connect(self.save_changes)
+        self.table.itemSelectionChanged.connect(self.on_selection_changed)
+        # Entrar en edición con un solo clic también al hacer click en la celda (mouse press)
+        self.table.cellClicked.connect(self.on_cell_clicked)
 
         self.setLayout(layout)
         self.load_data()
@@ -64,10 +77,30 @@ class ProyectosTab(QWidget):
             self.table.setItem(r,1,QTableWidgetItem(p["nombre"]))
             self.table.setItem(r,2,QTableWidgetItem(str(p["orden"])))
         self.table.blockSignals(False)
+        # Anchos de columna: Nombre más ancho
+        try:
+            self.table.setColumnWidth(0, 60)   # ID
+            self.table.setColumnWidth(1, 400)  # Nombre
+            self.table.setColumnWidth(2, 80)   # Orden
+        except Exception:
+            pass
 
     def add(self):
-        add_proyecto("", 99)  # nombre vacío, orden 99
+        # Crear nuevo proyecto al final: orden = max(orden) + 10
+        add_proyecto("", None)
         self.load_data()
+        # Seleccionar la última fila y editar el nombre directamente
+        try:
+            last_row = self.table.rowCount() - 1
+            if last_row >= 0:
+                self.table.setCurrentCell(last_row, 1)
+                item = self.table.item(last_row, 1)
+                if item is None:
+                    item = QTableWidgetItem("")
+                    self.table.setItem(last_row, 1, item)
+                self.table.editItem(item)
+        except Exception:
+            pass
 
     def delete(self):
         row = self.table.currentRow()
@@ -82,10 +115,45 @@ class ProyectosTab(QWidget):
         if row<0: return
         p = self.data[row]
         id = p["id"]
-        nombre = self.table.item(row,1).text()
+        nombre_item = self.table.item(row,1)
+        nombre = nombre_item.text() if nombre_item else ""
+        # Validación longitud nombre para no superar la BBDD
+        if len(nombre) > self.MAX_NOMBRE_LEN:
+            QMessageBox.warning(self, "Nombre demasiado largo",
+                                f"El nombre excede {self.MAX_NOMBRE_LEN} caracteres y será recortado.")
+            nombre = nombre[:self.MAX_NOMBRE_LEN]
+            # Reflejar recorte en la UI
+            self.table.blockSignals(True)
+            self.table.setItem(row,1,QTableWidgetItem(nombre))
+            self.table.blockSignals(False)
         orden = int(self.table.item(row,2).text())
         update_proyecto(id, nombre, orden)
         self.load_data()
+
+    def on_selection_changed(self):
+        # Si se selecciona una celda de Nombre (1) u Orden (2), entrar en edición con un clic
+        sel = self.table.selectedIndexes()
+        if not sel:
+            return
+        idx = sel[0]
+        if idx.column() in (1, 2):
+            item = self.table.item(idx.row(), 1)
+            if idx.column() == 2:
+                item = self.table.item(idx.row(), 2)
+            if item is None:
+                item = QTableWidgetItem("")
+                self.table.setItem(idx.row(), idx.column(), item)
+            # Forzar edición inmediata
+            self.table.editItem(item)
+
+    def on_cell_clicked(self, row, column):
+        # Entrada inmediata a edición con un solo clic en Nombre u Orden
+        if column in (1, 2):
+            item = self.table.item(row, column)
+            if item is None:
+                item = QTableWidgetItem("")
+                self.table.setItem(row, column, item)
+            self.table.editItem(item)
 
 class DiasTab(QWidget):
     def __init__(self, mainwin):
@@ -437,10 +505,13 @@ class PlanDiaTab(QWidget):
 
         top_bar.addStretch(1)
         self.add_btn = QPushButton("Añadir")
+        self.dup_btn = QPushButton("Duplicar tarea")
         self.del_btn = QPushButton("Borrar")
         self.add_btn.clicked.connect(self.add_focused)
+        self.dup_btn.clicked.connect(self.duplicar_tarea)
         self.del_btn.clicked.connect(self.delete_focused)
         top_bar.addWidget(self.add_btn)
+        top_bar.addWidget(self.dup_btn)
         top_bar.addWidget(self.del_btn)
         main_layout.addLayout(top_bar)
 
@@ -804,6 +875,25 @@ class PlanDiaTab(QWidget):
         self.order_mode = 2 if self.order_mode == 1 else 1
         self.btn_toggle_order.setText("Orden: Proyecto/Prio/Fecha" if self.order_mode == 2 else "Orden: Fecha/Prioridad")
         self._load_tareas(self.mainwin.ref_fecha)
+
+    def duplicar_tarea(self):
+        # Duplica la tarea seleccionada en el grid de tareas.
+        # Reglas: mismo proyecto; el resto como una nueva tarea (descripcion vacía, prio 99, tiempo 0)
+        row = getattr(self, 'tareas_table', None).currentRow() if hasattr(self, 'tareas_table') else -1
+        if row is None or row < 0:
+            return
+        if not hasattr(self, 'tareas_data') or row >= len(self.tareas_data):
+            return
+        tarea = self.tareas_data[row]
+
+        # Determinar fecha objetivo como hace add_focused para tareas: fecha máxima de días o ref actual
+        max_fecha = get_max_fecha_dia()
+        fecha_ref = str(max_fecha) if max_fecha else str(self.mainwin.ref_fecha)
+
+        proyecto_id = tarea.get("proyecto_id")
+        # Crear nueva tarea con mismos proyecto y fecha calculada, resto por defecto
+        add_tarea(proyecto_id, fecha_ref, "", 99, 0)
+        self.load_data(self.mainwin.ref_fecha)
 
 class MainWindow(QMainWindow):
     def __init__(self):

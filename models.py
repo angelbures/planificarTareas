@@ -9,10 +9,16 @@ def get_proyectos(order_by="orden"):
             return cur.fetchall()
 
 def add_proyecto(nombre, orden):
-    sql = "INSERT INTO proyectos(nombre, orden) VALUES (%s, %s)"
+    # Si orden es None, calcula max(orden)+10; si viene valor, se respeta
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(sql, (nombre, orden))
+            if orden is None:
+                cur.execute("SELECT IFNULL(MAX(orden), 0) AS m FROM proyectos")
+                m = cur.fetchone()["m"] if cur.rowcount != 0 else 0
+                orden_calc = int(m) + 10
+            else:
+                orden_calc = orden
+            cur.execute("INSERT INTO proyectos(nombre, orden) VALUES (%s, %s)", (nombre, orden_calc))
         conn.commit()
 
 def update_proyecto(id, nombre, orden):
