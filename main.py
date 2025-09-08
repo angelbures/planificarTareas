@@ -1,10 +1,11 @@
+﻿from PyQt5.QtCore import QDate, Qt
 import sys, datetime
-from PyQt5.QtCore import QDate, Qt
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QTableWidget,
     QTableWidgetItem, QPushButton, QHBoxLayout, QMessageBox, QDateEdit, QComboBox,
     QLabel, QSizePolicy
 )
+import datetime
 from PyQt5.QtGui import QColor, QFont
 from models import (
     get_proyectos, add_proyecto, update_proyecto, delete_proyecto,
@@ -15,6 +16,17 @@ from models import (
 from db import ensure_database, reset_database
 
 ensure_database()
+def closeEvent(self, event):
+    try:
+        from models import export_all_tables_to_excel
+        export_all_tables_to_excel('./' + datetime.date.today().strftime('%Y%m%d') + '-dump.xlsx')
+    except Exception as e:
+        try:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.warning(self, 'Exportación', f'No se pudo exportar: {e}')
+        except Exception:
+            pass
+    event.accept()
 # --- helpers ---
 def minutos_a_hhmm(mins):
     h = mins // 60
@@ -967,6 +979,18 @@ class MainWindow(QMainWindow):
         self.plan_dia_tab.load_data(self.ref_fecha)
         self.proy_tab.load_data()  # <-- añade esto para actualizar ProyectosTab
 
+    def closeEvent(self, event):
+        """Se ejecuta al cerrar la ventana para exportar los datos a Excel."""
+        try:
+            from models import export_all_tables_to_excel
+            filename = f"./{datetime.date.today().strftime('%Y%m%d')}-dump.xlsx"
+            export_all_tables_to_excel(filename)
+        except Exception as e:
+            QMessageBox.warning(self, 'Error en Exportación', f'No se pudo exportar a Excel: {e}')
+        
+        # Aceptar el evento para que la ventana se cierre
+        event.accept()
+
 if __name__=="__main__":
     if "--reset" in sys.argv:
         # full_reset_database ya no se usa; usar reset_database
@@ -975,5 +999,9 @@ if __name__=="__main__":
     win = MainWindow()
     win.show()
     sys.exit(app.exec_())
+
+
+
+
 
 

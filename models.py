@@ -1,3 +1,5 @@
+﻿import datetime
+import pandas as pd
 from db import get_connection
 
 # ---------- PROYECTOS ----------
@@ -130,3 +132,53 @@ def delete_tarea(id):
         with conn.cursor() as cur:
             cur.execute(sql, (id,))
         conn.commit()
+
+
+# ---------- EXPORT ----------
+# ---------- EXPORT ----------
+def export_all_tables_to_excel(output_path: str = "./export.xlsx"):
+    """
+    Exporta todas las tablas a un único fichero Excel con un sheet por tabla.
+    Nombre por defecto: ./export.xlsx (puedes pasar otra ruta completa).
+    Aplica autoajuste de columnas básico.
+    """
+    tablas = ["proyectos", "dias", "tareas"]
+    with get_connection() as conn:
+        with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+            for tabla in tablas:
+                with conn.cursor() as cur:
+                    cur.execute(f"SELECT * FROM {tabla}")
+                    rows = cur.fetchall()
+                    df = pd.DataFrame(rows)
+                    df.to_excel(writer, index=False, sheet_name=tabla)
+                    # Autosize columns
+                    ws = writer.sheets[tabla]
+                    for idx, col in enumerate(df.columns, start=1):
+                        series = df[col].astype(str).fillna("")
+                        max_len = max([len(str(col))] + [len(v) for v in series.tolist()])
+                        ws.column_dimensions[get_column_letter(idx)].width = min(max_len + 2, 60)
+# ---------- EXPORT ----------
+# ---------- EXPORT ----------
+def export_all_tables_to_excel(output_path: str = "./export.xlsx"):
+    """
+    Exporta todas las tablas a un único fichero Excel con un sheet por tabla.
+    Nombre por defecto: ./export.xlsx (puedes pasar otra ruta completa).
+    Aplica autoajuste de columnas básico.
+    """
+    tablas = ["proyectos", "dias", "tareas"]
+    with get_connection() as conn:
+        with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+            for tabla in tablas:
+                with conn.cursor() as cur:
+                    cur.execute(f"SELECT * FROM {tabla}")
+                    rows = cur.fetchall()
+                    df = pd.DataFrame(rows)
+                    df.to_excel(writer, index=False, sheet_name=tabla)
+                    # Autosize columns
+                    ws = writer.sheets[tabla]
+                    for idx, col in enumerate(df.columns, start=1):
+                        series = df[col].astype(str).fillna("")
+                        max_len = max([len(str(col))] + [len(v) for v in series.tolist()])
+                        ws.column_dimensions[get_column_letter(idx)].width = min(max_len + 2, 60)
+from openpyxl.utils import get_column_letter
+
